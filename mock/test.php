@@ -38,7 +38,7 @@ var_dump(getenv('XDEBUG_CONFIG'));
 function foo($y) {
     $x = 2;
     $something = "string value";
-    
+
     var_dump("foo() in");
     // xdebug_break();
     var_dump("foo() out");
@@ -50,7 +50,7 @@ class MyFoo
 {
     private $hey = "ho";
     protected $myBar = "something";
-    
+
     protected function myMethod()
     {
         global $typeStr;
@@ -61,12 +61,12 @@ class MyFoo
 class MyBar extends MyFoo
 {
     private $hey = "test";
-    
+
     public function __constructor()
     {
         $this->myBar = "hello world";
     }
-    
+
     public function myOtherMethod()
     {
         $test = "test";

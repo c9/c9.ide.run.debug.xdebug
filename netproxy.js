@@ -27,20 +27,20 @@ var host = "127.0.0.1";
 
 var browserServer = net.createServer(function(client) {
     console.log("browserClient::connect");
-    
+
     if (browserClient)
         browserClient.end();
-    
+
     browserClient = client;
     debugBuffer = [];
-    
+
     browserClient.on("end", function() {
         console.log("browserClient::end");
         if (debugClient)
             debugClient.end();
         browserClient = null;
     });
-    
+
     browserClient.on("data", function(data) {
         console.log("browserClient::data:", data.toString("utf8"));
         if (debugClient) {
@@ -49,7 +49,7 @@ var browserServer = net.createServer(function(client) {
             debugBuffer.push(data);
         }
     });
-    
+
     if (browserBuffer.length) {
         browserBuffer.forEach(function(data) {
             browserClient.write(data);
@@ -72,22 +72,23 @@ browserServer.on("error", function(err) {
 
 var debugServer = net.createServer(function(client) {
     console.log("debugClient::connect");
-    
+
     if (debugClient)
         debugClient.end();
-        
+
     debugClient = client;
-    
+
     debugBuffer = [];
     browserBuffer = [];
-    
+
     debugClient.on("end", function() {
         console.log("debugClient::end");
-        debugClient = null;
-        if (browserClient)
-            browserClient.end();
+        process.exit(0);
+        // debugClient = null;
+        // if (browserClient)
+        //     browserClient.end();
     });
-    
+
     debugClient.on("data", function(data) {
         console.log("debugClient::data:", data.toString("utf8"));
         if (browserClient) {
@@ -96,7 +97,7 @@ var debugServer = net.createServer(function(client) {
             browserBuffer.push(data);
         }
     });
-    
+
     if (debugBuffer.length) {
         debugBuffer.forEach(function(data) {
             debugClient.write(data);

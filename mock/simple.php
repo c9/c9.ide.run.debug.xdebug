@@ -5,7 +5,8 @@ echo "php start\n";
 error_reporting(E_ALL);
 ini_set('display_errors', true);
 
-define("YES", M_PI); $NO = 42;
+define("YES", M_PI);
+$NO = 42;
 
 $typeNull = null;
 $typeInt = 100;
@@ -19,7 +20,11 @@ $typeClosure = function() {};
 $typeResource = fopen("php://memory", "rw");
 fputs($typeResource, "foo");
 
+// test?
+
 var_dump(xdebug_is_enabled());
 var_dump(getenv('XDEBUG_CONFIG'));
+
+xdebug_break();
 
 echo "php end\n";

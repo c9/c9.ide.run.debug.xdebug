@@ -18,7 +18,7 @@ require([
     "/vfs-root"
 ], function (architect, chai, baseProc) {
     var expect = chai.expect;
-    
+
     expect.setupArchitectTest([
         {
             packagePath: "plugins/c9.core/c9",
@@ -31,7 +31,7 @@ require([
             workspaceDir: baseProc,
             davPrefix: "/"
         },
-        
+
         "plugins/c9.core/ext",
         "plugins/c9.core/util",
         "plugins/c9.core/http-xhr",
@@ -42,7 +42,7 @@ require([
         "plugins/c9.vfs.client/endpoint",
         "plugins/c9.ide.auth/auth",
         "plugins/c9.ide.run.debug/debuggers/socket",
-        
+
         {
             consumes: [],
             provides: ["c9"],
@@ -54,7 +54,7 @@ require([
             setup: main
         }
     ], architect);
-    
+
     function main(options, imports, register) {
         var Socket = imports["debugger.socket"];
         var proc = imports["proc"];
@@ -66,97 +66,100 @@ var DbgpClient = require("./lib/DbgpClient");
 
 describe("Full Client Test", function() {
     this.timeout(30000);
-    
+
     var client, socket;
-    
+
     beforeEach(function(done) {
         clearLog(done);
         client = new DbgpClient();
         socket = new Socket(15155, require("text!./netproxy.js").replace("{PORT}", "15155"), true);
     });
-    
+
     function clearLog(done) {
         // fs.rmfile("/xdebug.log", function() {
         // });
-        
-        proc.execFile("rm", { 
+
+        proc.execFile("rm", {
             args: ["-f", "xdebug.log"],
-            cwd: "/home/ubuntu/workspace"
+            //cwd: "/home/ubuntu/workspace"
+            cwd: "/Users/alex/Projects/C9/Code/newclient"
         }, function(err, stdout, stderr) {
             done(err);
         });
     }
-    
+
     function dumpLog(done) {
         // fs.readFile("/xdebug.log", function(err, content){
         //     console.info(content);
-        // }); 
-            
-        proc.execFile("cat", { 
+        // });
+
+        proc.execFile("cat", {
             args: ["xdebug.log"],
-            cwd: "/home/ubuntu/workspace"
+            //cwd: "/home/ubuntu/workspace"
+            cwd: "/Users/alex/Projects/C9/Code/newclient"
         }, function(err, stdout, stderr) {
             console.info(stderr, stdout);
             done(err);
         });
     }
-    
+
     function runPhpScript(done) {
         // console.log("Starting PHP process");
-        
-        proc.spawn("/usr/bin/php", { 
+
+        proc.spawn("php", {
             args: ["plugins/c9.ide.run.debug.xdebug/mock/simple.php"],
             env: {
                 "XDEBUG_CONFIG": "remote_log=xdebug.log idekey=session_name remote_host=localhost remote_port=15155 remote_mode=req remote_enable=true"
-            }
+            },
+            cwd: "/Users/alex/Projects/C9/Code/newclient"
         }, function(err, process) {
             // console.log("Process started");
-            
+
             if (err) {
                 console.error(err);
                 return done(err);
             }
-        
+
             process.stderr.on("data", function(data) {
-                console.log(data);    
+                console.log(data);
             });
-            
+
             process.stdout.on("data", function(data) {
-                console.log(data);    
+                console.log(data);
             });
-            
+
             process.on("exit", function(code) {
-                console.log("Process Stopped"); 
+                console.log("Process Stopped");
                 done();
             });
         });
     }
-    
+
     it("should connect via socket", function(done) {
         client.on("listening", function() {
             console.log("== listening ==")
             runPhpScript(done);
         });
-        
+
         client.on("session", function(session) {
             console.log(session);
-            
+
             session.on("status", function(status) {
                 console.info(status);
             });
-            
+
             session.eval("print('HELLO WORLD');", function(err, args, data) {
                 if (err) return done(err);
-                
+
                 session.run(function(err, args, data) {
                     if (err) return done(err);
                 });
             });
         });
-        
+
         client.listen(socket);
     });
-    
+
     afterEach(function(done) {
         socket.close();
         dumpLog(done);
