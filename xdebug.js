@@ -38,10 +38,10 @@ define(function(require, exports, module) {
 
         var socket, client, session;
 
-        var attached = false
-          , state = null
-          , breakOnExceptions = false
-          , breakOnUncaughtExceptions = false;
+        var attached = false;
+        var state = null;
+        var breakOnExceptions = false;
+        var breakOnUncaughtExceptions = false;
 
         /***** Event Handlers *****/
 

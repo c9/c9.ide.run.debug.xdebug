@@ -4,10 +4,10 @@ var port = parseInt("{PORT}", 10);
 if (isNaN(port))
     port = 15155;
 
-var browserBuffer = []
-    , debugBuffer = []
-    , browserClient
-    , debugClient;
+var browserBuffer = [];
+var debugBuffer = [];
+var browserClient;
+var debugClient;
 
 var MAX_RETRIES = 100;
 var RETRY_INTERVAL = 300;
