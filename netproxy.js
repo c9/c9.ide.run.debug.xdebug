@@ -3,7 +3,7 @@ var debug = require("debug")("netproxy");
 
 var port = parseInt("{PORT}", 10);
 if (isNaN(port))
-    port = 15155;
+    port = 9000;
 
 var browserBuffer = [];
 var debugBuffer = [];
