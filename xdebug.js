@@ -1,12 +1,11 @@
 define(function(require, exports, module) {
-    main.consumes = ["Plugin", "c9", "util", "debugger"];
+    main.consumes = ["Plugin", "c9", "debugger"];
     main.provides = ["debugger.xdebug"];
     return main;
 
     function main(options, imports, register) {
         var Plugin = imports.Plugin;
         var c9 = imports.c9;
-        var util = imports.util;
         var debug = imports["debugger"];
 
         var Frame = debug.Frame;
@@ -178,6 +177,265 @@ define(function(require, exports, module) {
 
         /***** Methods *****/
 
+        function attach(socket_, reconnect, callback) {
+            socket = socket_;
+
+            client = new DbgpClient();
+
+            client.on("session", function(session_) {
+                session = session_;
+
+                session.on("status", onStatus);
+                session.on("break", onBreak);
+
+                session.setFeature("max_depth", 0);
+                session.setFeature("max_data", 1024);
+                session.setFeature("max_children", 150);
+
+                setBreakpoints(emit("getBreakpoints"), function(breakpoints) {
+                    if (!attached) {
+                        attached = true;
+                        emit("attach", { breakpoints: breakpoints });
+                    }
+
+                    session.run();
+                    callback();
+                });
+            });
+
+            client.on("error", function(err) {
+                emit("error", err);
+            }, plugin);
+
+            client.listen(socket);
+        }
+
+        function detach() {
+            if (session) session.stop();
+            if (client) client.close();
+            if (socket) socket.close();
+
+            emit("frameActivate", { frame: null });
+            setState(null);
+
+            socket = null;
+            client = null;
+            session = null;
+            attached = false;
+
+            emit("detach");
+        }
+
+        function getSources(callback) {
+            callback && callback(new Error("Not implemented"));
+        }
+
+        function getSource(source, callback) {
+            session.getSource(source.id, callback);
+        }
+
+        function getFrames(callback, silent) {
+            session.getStackFrames(null, function(err, data) {
+                if (err) return callback(err);
+
+                var frames = data.map(function(frame) {
+                    var scriptURI = frame["@filename"]
+                        , parts = url.parse(scriptURI);
+
+                    var scriptPath
+                        , scriptName;
+
+                    if (parts.protocol === "file:") {
+                        // resolve absolute file path to workspace path
+                        scriptPath = workspacePath(parts.pathname);
+                        scriptName = path.basename(scriptPath);
+                    } else {
+                        // FIXME: causes metadata errors
+                        scriptPath = scriptURI;
+                        scriptName = scriptURI;
+
+                        // TODO: push "fake" sources to avoid metadata error
+                        //var sources = [
+                            //new Source({
+                                //id: scriptURI,
+                                //name: parts.protocol + path.basename(parts.pathname),
+                                ////path: parts.protocol + path.basename(parts.pathname),
+                                //debug: true
+                            //})
+                        //];
+                        //emit("sources", { sources: sources });
+                    }
+
+                    var level = frame["@level"];
+                    var line = frame["@lineno"] - 1;
+
+                    return new Frame({
+                        index: level,
+                        name: frame["@where"],
+                        line: line,
+                        column: 0, // TODO: cmdbegin = line:col
+                        id: null,
+                        script: scriptName,
+                        path: scriptPath,
+                        sourceId: scriptURI,
+                        scopes: [
+                            new Scope({ index: 0, type: "Locals", frameIndex: level }),
+                            new Scope({ index: 1, type: "Superglobals", frameIndex: level }),
+
+                            /* FIXME: Xdebug 2.3.0+ only */
+                            // new Scope({ index: 2, type: "Contants", frameIndex: level })
+                        ],
+                        variables: [],
+                        istop: (level === 0)
+                    });
+                });
+
+                emit("getFrames", { frames: frames });
+                callback(null, frames);
+            });
+        }
+
+        function getScope(frame, scope, callback) {
+            session.getContextProperties(frame.index, scope.index, function(err, data) {
+                if (err) return callback(err);
+
+                var variables = data.map(function(prop) {
+                    var result = createVariable(prop);
+                    result.scope = scope;
+                    return result;
+                });
+
+                scope.variables = variables;
+
+                callback(null, variables, scope, frame);
+            });
+        }
+
+        function getProperties(variable, callback) {
+            var scope = findScope(variable);
+
+            session.getPropertyChildren(variable.ref, scope.frameIndex, scope.index, function(err, data) {
+                if (err) return callback(err);
+
+                var properties = data.map(function(prop) {
+                    var result = createVariable(prop);
+                    result.parent = variable;
+                    return result;
+                });
+
+                variable.properties = properties;
+
+                callback(null, properties, variable);
+            });
+        }
+
+        function stepInto(callback) {
+            session.stepInto(callback);
+        }
+
+        function stepOver(callback) {
+            session.stepOver(callback);
+        }
+
+        function stepOut(callback) {
+            session.stepOut(callback);
+        }
+
+        function resume(callback) {
+            session.run(callback);
+        }
+
+        function suspend(callback) {
+            callback(new Error("FIXME: command 'break' is not supported by PHP Xdebug"));
+        }
+
+        function evaluate(expression, frame, global, disableBreak, callback) {
+            expression = expression.trim();
+
+            if (state !== "stopped")
+                return callback(null, new Variable({ name: expression }));
+
+            session.eval(expression, function(err, data) {
+                if (err) return callback(err);
+
+                var variable = createVariable(data);
+                variable.name = expression;
+                variable.ref = expression;
+                variable.scope = frame.scopes[0];
+
+                callback(null, variable);
+            });
+        }
+
+        function setBreakpoint(bp, callback) {
+            var path = filesystemPath(bp.path);
+
+            var options = {
+                line: (bp.line + 1),
+                enabled: bp.enabled,
+                condition: bp.condition,
+                ignoreCount: bp.ignoreCount
+            };
+
+            session.setBreakpoint(path, options, function(err, breakpointId) {
+                if (!err) bp.id = breakpointId;
+                callback && callback(err, bp);
+            });
+        }
+
+        function changeBreakpoint(bp, callback) {
+            var options = {
+                line: (bp.line + 1),
+                enabled: bp.enabled,
+                condition: bp.condition,
+                ignoreCount: bp.ignoreCount,
+            };
+
+            session.updateBreakpoint(bp.id, options, function(err) {
+                callback && callback(err, bp);
+            });
+        }
+
+        function clearBreakpoint(bp, callback) {
+            session.removeBreakpoint(bp.id, function(err) {
+                callback && callback(err, bp);
+            });
+        }
+
+        function listBreakpoints(callback) {
+            // normally we'd send breakpoint_list, but since breakpoint state
+            // is entirely dependent on UI, we'll manage it globally
+            callback(null, emit("getBreakpoints"));
+        }
+
+        function setVariable(variable, parents, value, frame, callback) {
+            var scope = findScope(variable);
+
+            session.setPropertyValue(variable.ref, frame.index, scope.index, value, function(err) {
+                if (err) return callback(err);
+
+                session.getProperty(variable.ref, frame.index, scope.index, function(err, property) {
+                    if (err) return callback(err);
+
+                    variable.type = formatType(property);
+                    variable.value = formatValue(property, property["$"]);
+                    variable.children = !!property["@children"];
+                    variable.properties = undefined;
+
+                    variable.status = "pending"; // force a refresh of tree view
+
+                    callback(null, variable);
+                });
+            });
+        }
+
+        function getProxySource(process) {
+            return PROXY
+                .replace(/\/\/.*/g, "")
+                .replace(/[\n\r]/g, "")
+                .replace(/\{PORT\}/, process.runner[0].debugport);
+        }
+
         function setBreakpoints(breakpoints, callback) {
             function _setBPs(breakpoints, callback, i) {
                 // run callback once we've exhausted setting breakpoints
@@ -212,15 +470,9 @@ define(function(require, exports, module) {
         plugin.on("unload", unload);
 
         /**
-         * Debugger implementation for Cloud9. When you are implementing a
-         * custom debugger, implement this API. If you are looking for the
-         * debugger interface of Cloud9, check out the {@link debugger}.
-         *
-         * This interface is defined to be as stateless as possible. By
-         * implementing these methods and events you'll be able to hook your
-         * debugger seamlessly into the Cloud9 debugger UI.
-         *
-         * See also {@link debugger#registerDebugger}.
+         * Xdebug (DBGP) debugger implementation for Cloud9. This debugger
+         * implements the DBGP protocol, which can be used with several
+         * different language engines, such as PHP, or Python.
          *
          * @class debugger.xdebug
          * @extends debugger.implementation
@@ -238,12 +490,12 @@ define(function(require, exports, module) {
              * @property {Boolean} features.executeCode             Able to execute code (disable REPL)
              */
             features: {
-                // scripts: true,
+                scripts: false,
                 conditionalBreakpoints: true,
-                // liveUpdate: true,
+                liveUpdate: false,
                 updateWatchedVariables: true,
                 updateScopeVariables: true,
-                // setBreakBehavior: true,
+                setBreakBehavior: false,
                 executeCode: true
 
                 // TODO: flag to disable "suspend" command
@@ -358,63 +610,12 @@ define(function(require, exports, module) {
              * @param {Object}                runner        A runner as specified by {@link run#run}.
              * @param {debugger.Breakpoint[]} breakpoints   The set of breakpoints that should be set from the start
              */
-            attach: function attach(socket_, reconnect, callback) {
-                console.info('attach()');
-
-                socket = socket_;
-
-                client = new DbgpClient();
-
-                client.on("session", function(session_) {
-                    console.info("=== session ===");
-
-                    session = session_;
-
-                    session.on("status", onStatus);
-                    session.on("break", onBreak);
-
-                    session.setFeature("max_depth", 0);
-                    session.setFeature("max_data", 1024);
-                    session.setFeature("max_children", 150);
-
-                    setBreakpoints(emit("getBreakpoints"), function(breakpoints) {
-                        if (!attached) {
-                            attached = true;
-                            emit("attach", { breakpoints: breakpoints });
-                        }
-
-                        session.run();
-                        callback();
-                    });
-                });
-
-                client.on("error", function(err) {
-                    emit("error", err);
-                }, plugin);
-
-                client.listen(socket);
-            },
+            attach: attach,
 
             /**
              * Detaches the debugger from the started process.
              */
-            detach: function detach() {
-                console.info('detach()');
-
-                if (session) session.stop();
-                if (client) client.close();
-                if (socket) socket.close();
-
-                emit("frameActivate", { frame: null });
-                setState(null);
-
-                socket = null;
-                client = null;
-                session = null;
-                attached = false;
-
-                emit("detach");
-            },
+            detach: detach,
 
             /**
              * Loads all the active sources from the process
@@ -424,9 +625,7 @@ define(function(require, exports, module) {
              * @param {debugger.Source[]} callback.sources  A list of the active sources.
              * @fires sources
              */
-            getSources: function getSources(callback) {
-                callback && callback(new Error("Not implemented"));
-            },
+            getSources: getSources,
 
             /**
              * Retrieves the contents of a source file
@@ -435,9 +634,7 @@ define(function(require, exports, module) {
              * @param {Error}           callback.err       The error object if an error occured.
              * @param {String}          callback.contents  The contents of the source file
              */
-            getSource: function getSource(source, callback) {
-                session.getSource(source.id, callback);
-            },
+            getSource: getSource,
 
             /**
              * Retrieves the current stack of frames (aka "the call stack")
@@ -447,66 +644,7 @@ define(function(require, exports, module) {
              * @param {debugger.Frame[]}  callback.frames   A list of frames, where index 0 is the frame where the debugger has breaked in.
              * @fires getFrames
              */
-            getFrames: function getFrames(callback, silent) {
-                session.getStackFrames(null, function(err, data) {
-                    if (err) return callback(err);
-
-                    var frames = data.map(function(frame) {
-                        var scriptURI = frame["@filename"]
-                            , parts = url.parse(scriptURI);
-
-                        var scriptPath
-                            , scriptName;
-
-                        if (parts.protocol === "file:") {
-                            // resolve absolute file path to workspace path
-                            scriptPath = workspacePath(parts.pathname);
-                            scriptName = path.basename(scriptPath);
-                        } else {
-                            // FIXME: causes metadata errors
-                            scriptPath = scriptURI;
-                            scriptName = scriptURI;
-
-                            // TODO: push "fake" sources to avoid metadata error
-                            //var sources = [
-                                //new Source({
-                                    //id: scriptURI,
-                                    //name: parts.protocol + path.basename(parts.pathname),
-                                    ////path: parts.protocol + path.basename(parts.pathname),
-                                    //debug: true
-                                //})
-                            //];
-                            //emit("sources", { sources: sources });
-                        }
-
-                        var level = frame["@level"];
-                        var line = frame["@lineno"] - 1;
-
-                        return new Frame({
-                            index: level,
-                            name: frame["@where"],
-                            line: line,
-                            column: 0, // TODO: cmdbegin = line:col
-                            id: null,
-                            script: scriptName,
-                            path: scriptPath,
-                            sourceId: scriptURI,
-                            scopes: [
-                                new Scope({ index: 0, type: "Locals", frameIndex: level }),
-                                new Scope({ index: 1, type: "Superglobals", frameIndex: level }),
-
-                                /* FIXME: Xdebug 2.3.0+ only */
-                                // new Scope({ index: 2, type: "Contants", frameIndex: level })
-                            ],
-                            variables: [],
-                            istop: (level === 0)
-                        });
-                    });
-
-                    emit("getFrames", { frames: frames });
-                    callback(null, frames);
-                });
-            },
+            getFrames: getFrames,
 
             /**
              * Retrieves the variables from a scope.
@@ -518,21 +656,7 @@ define(function(require, exports, module) {
              * @param {debugger.Scope}      callback.scope      The scope to which these variables belong
              * @param {debugger.Frame}      callback.frame      The frame related to the scope.
              */
-            getScope: function getScope(frame, scope, callback) {
-                session.getContextProperties(frame.index, scope.index, function(err, data) {
-                    if (err) return callback(err);
-
-                    var variables = data.map(function(prop) {
-                        var result = createVariable(prop);
-                        result.scope = scope;
-                        return result;
-                    });
-
-                    scope.variables = variables;
-
-                    callback(null, variables, scope, frame);
-                });
-            },
+            getScope: getScope,
 
             /**
              * Retrieves and sets the properties of a variable.
@@ -542,58 +666,32 @@ define(function(require, exports, module) {
              * @param {debugger.Variable[]} callback.properties  A list of properties of the variable.
              * @param {debugger.Variable}   callback.variable    The variable to which the properties belong.
              */
-            getProperties: function getProperties(variable, callback) {
-                var scope = findScope(variable);
-
-                session.getPropertyChildren(variable.ref, scope.frameIndex, scope.index, function(err, data) {
-                    if (err) return callback(err);
-
-                    var properties = data.map(function(prop) {
-                        var result = createVariable(prop);
-                        result.parent = variable;
-                        return result;
-                    });
-
-                    variable.properties = properties;
-
-                    callback(null, properties, variable);
-                });
-            },
+            getProperties: getProperties,
 
             /**
              * Step into the next statement.
              */
-            stepInto: function stepInto(callback) {
-                session.stepInto(callback);
-            },
+            stepInto: stepInto,
 
             /**
              * Step over the next statement.
              */
-            stepOver: function stepOver(callback) {
-                session.stepOver(callback);
-            },
+            stepOver: stepOver,
 
             /**
              * Step out of the current statement.
              */
-            stepOut: function stepOut(callback) {
-                session.stepOut(callback);
-            },
+            stepOut: stepOut,
 
             /**
              * Continues execution of a process after it has hit a breakpoint.
              */
-            resume: function resume(callback) {
-                session.run(callback);
-            },
+            resume: resume,
 
             /**
              * Pauses the execution of a process at the next statement.
              */
-            suspend: function suspend(callback) {
-                callback(new Error("FIXME: command 'break' is not supported by PHP Xdebug"));
-            },
+            suspend: suspend,
 
             /**
              * Evaluates an expression in a frame or in global space.
@@ -605,23 +703,7 @@ define(function(require, exports, module) {
              * @param {Error}             callback.err       The error if any error occured.
              * @param {debugger.Variable} callback.variable  The result of the expression.
              */
-            evaluate: function evaluate(expression, frame, global, disableBreak, callback) {
-                expression = expression.trim();
-
-                if (state !== "stopped")
-                    return callback(null, new Variable({ name: expression }));
-
-                session.eval(expression, function(err, data) {
-                    if (err) return callback(err);
-
-                    var variable = createVariable(data);
-                    variable.name = expression;
-                    variable.ref = expression;
-                    variable.scope = frame.scopes[0];
-
-                    callback(null, variable);
-                });
-            },
+            evaluate: evaluate,
 
             /**
              * Change a live running source to the latest code state
@@ -641,21 +723,7 @@ define(function(require, exports, module) {
              * @param {debugger.Breakpoint} callback.breakpoint  The added breakpoint
              * @param {Object}              callback.data        Additional debugger specific information.
              */
-            setBreakpoint: function setBreakpoint(bp, callback) {
-                var path = filesystemPath(bp.path);
-
-                var options = {
-                    line: (bp.line + 1),
-                    enabled: bp.enabled,
-                    condition: bp.condition,
-                    ignoreCount: bp.ignoreCount
-                };
-
-                session.setBreakpoint(path, options, function(err, breakpointId) {
-                    if (!err) bp.id = breakpointId;
-                    callback && callback(err, bp);
-                });
-            },
+            setBreakpoint: setBreakpoint,
 
             /**
              * Updates properties of a breakpoint
@@ -664,18 +732,7 @@ define(function(require, exports, module) {
              * @param {Error}               callback.err         The error if any error occured.
              * @param {debugger.Breakpoint} callback.breakpoint  The updated breakpoint
              */
-            changeBreakpoint: function changeBreakpoint(bp, callback) {
-                var options = {
-                    line: (bp.line + 1),
-                    enabled: bp.enabled,
-                    condition: bp.condition,
-                    ignoreCount: bp.ignoreCount,
-                };
-
-                session.updateBreakpoint(bp.id, options, function(err) {
-                    callback && callback(err, bp);
-                });
-            },
+            changeBreakpoint: changeBreakpoint,
 
             /**
              * Removes a breakpoint from a line in a source file.
@@ -684,11 +741,7 @@ define(function(require, exports, module) {
              * @param {Error}               callback.err         The error if any error occured.
              * @param {debugger.Breakpoint} callback.breakpoint  The removed breakpoint
              */
-            clearBreakpoint: function clearBreakpoint(bp, callback) {
-                session.removeBreakpoint(bp.id, function(err) {
-                    callback && callback(err, bp);
-                });
-            },
+            clearBreakpoint: clearBreakpoint,
 
             /**
              * Retrieves a list of all the breakpoints that are set in the
@@ -697,11 +750,7 @@ define(function(require, exports, module) {
              * @param {Error}                 callback.err          The error if any error occured.
              * @param {debugger.Breakpoint[]} callback.breakpoints  A list of breakpoints
              */
-            listBreakpoints: function listBreakpoints(callback) {
-                // normally we'd send breakpoint_list, but since breakpoint state
-                // is entirely dependent on UI, we'll manage it globally
-                callback(null, emit("getBreakpoints"));
-            },
+            listBreakpoints: listBreakpoints,
 
             /**
              * Sets the value of a variable.
@@ -714,26 +763,7 @@ define(function(require, exports, module) {
              * @param {Error}               callback.err   The error if any error occured.
              * @param {Object}              callback.data  Additional debugger specific information.
              */
-            setVariable: function setVariable(variable, parents, value, frame, callback) {
-                var scope = findScope(variable);
-
-                session.setPropertyValue(variable.ref, frame.index, scope.index, value, function(err) {
-                    if (err) return callback(err);
-
-                    session.getProperty(variable.ref, frame.index, scope.index, function(err, property) {
-                        if (err) return callback(err);
-
-                        variable.type = formatType(property);
-                        variable.value = formatValue(property, property["$"]);
-                        variable.children = !!property["@children"];
-                        variable.properties = undefined;
-
-                        variable.status = "pending"; // force a refresh of tree view
-
-                        callback(null, variable);
-                    });
-                });
-            },
+            setVariable: setVariable,
 
             /**
              *
@@ -757,12 +787,7 @@ define(function(require, exports, module) {
             /**
              * Returns the source of the proxy
              */
-            getProxySource: function getProxySource(process) {
-                return PROXY
-                    .replace(/\/\/.*/g, "")
-                    .replace(/[\n\r]/g, "")
-                    .replace(/\{PORT\}/, process.runner[0].debugport);
-            }
+            getProxySource: getProxySource
         });
 
         register(null, {

@@ -1,6 +1,7 @@
 var net = require("net");
-var port = parseInt("{PORT}", 10);
+var debug = require("debug")("netproxy");
 
+var port = parseInt("{PORT}", 10);
 if (isNaN(port))
     port = 15155;
 
@@ -8,9 +9,6 @@ var browserBuffer = [];
 var debugBuffer = [];
 var browserClient;
 var debugClient;
-
-var MAX_RETRIES = 100;
-var RETRY_INTERVAL = 300;
 
 var log = console.log;
 
@@ -26,7 +24,7 @@ var host = "127.0.0.1";
 // ---
 
 var browserServer = net.createServer(function(client) {
-    console.log("browserClient::connect");
+    debug("browserClient::connect");
 
     if (browserClient)
         browserClient.end();
@@ -35,14 +33,14 @@ var browserServer = net.createServer(function(client) {
     debugBuffer = [];
 
     browserClient.on("end", function() {
-        console.log("browserClient::end");
+        debug("browserClient::end");
         if (debugClient)
             debugClient.end();
         browserClient = null;
     });
 
     browserClient.on("data", function(data) {
-        console.log("browserClient::data:", data.toString("utf8"));
+        debug("browserClient::data:", data.toString("utf8"));
         if (debugClient) {
             debugClient.write(data);
         } else {
@@ -59,7 +57,7 @@ var browserServer = net.createServer(function(client) {
 });
 
 browserServer.listen(port + 1, host, function() {
-    console.log("netproxy listening for browser on port " + (port+1));
+    debug("netproxy listening for browser on port " + (port+1));
     start();
 });
 
@@ -71,7 +69,7 @@ browserServer.on("error", function(err) {
 // ---
 
 var debugServer = net.createServer(function(client) {
-    console.log("debugClient::connect");
+    debug("debugClient::connect");
 
     if (debugClient)
         debugClient.end();
@@ -82,7 +80,7 @@ var debugServer = net.createServer(function(client) {
     browserBuffer = [];
 
     debugClient.on("end", function() {
-        console.log("debugClient::end");
+        debug("debugClient::end");
         process.exit(0);
         // debugClient = null;
         // if (browserClient)
@@ -90,7 +88,7 @@ var debugServer = net.createServer(function(client) {
     });
 
     debugClient.on("data", function(data) {
-        console.log("debugClient::data:", data.toString("utf8"));
+        debug("debugClient::data:", data.toString("utf8"));
         if (browserClient) {
             browserClient.write(data);
         } else {
@@ -107,7 +105,7 @@ var debugServer = net.createServer(function(client) {
 });
 
 debugServer.listen(port, host, function() {
-    console.log("netproxy listening for debugger on port " + port);
+    debug("netproxy listening for debugger on port " + port);
     start();
 });
 
