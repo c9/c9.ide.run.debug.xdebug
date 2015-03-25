@@ -401,8 +401,9 @@ define(function(require, exports, module) {
             detach: function detach() {
                 console.info('detach()');
 
-                if (client) client.end();
-                if (socket) socket.unload();
+                if (session) session.stop();
+                if (client) client.close();
+                if (socket) socket.close();
 
                 emit("frameActivate", { frame: null });
                 setState(null);
@@ -548,7 +549,9 @@ define(function(require, exports, module) {
                     if (err) return callback(err);
 
                     var properties = data.map(function(prop) {
-                        return createVariable(prop);
+                        var result = createVariable(prop);
+                        result.parent = variable;
+                        return result;
                     });
 
                     variable.properties = properties;
@@ -613,6 +616,8 @@ define(function(require, exports, module) {
 
                     var variable = createVariable(data);
                     variable.name = expression;
+                    variable.ref = expression;
+                    variable.scope = frame.scopes[0];
 
                     callback(null, variable);
                 });
