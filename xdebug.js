@@ -222,14 +222,10 @@ define(function(require, exports, module) {
          *
          * See also {@link debugger#registerDebugger}.
          *
-         * @class debugger.implementation
+         * @class debugger.xdebug
+         * @extends debugger.implementation
          */
         plugin.freezePublicAPI({
-            /**
-             * Contains the source code of the proxy to run
-             */
-            proxySource: require("text!./netproxy.js"),
-
             /**
              * Specifies the features that this debugger implementation supports
              * @property {Object} features
