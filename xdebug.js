@@ -162,7 +162,6 @@ define(function(require, exports, module) {
             if (state === state_)
                 return;
 
-            console.info(state_);
             state = state_;
             emit("stateChange", { state: state });
         }
@@ -205,6 +204,10 @@ define(function(require, exports, module) {
 
             client.on("error", function(err) {
                 emit("error", err);
+            }, plugin);
+            
+            client.once("listening", function(){
+                emit("connect");
             }, plugin);
 
             client.listen(socket);
@@ -496,7 +499,8 @@ define(function(require, exports, module) {
                 updateWatchedVariables: true,
                 updateScopeVariables: true,
                 setBreakBehavior: false,
-                executeCode: true
+                executeCode: true,
+                listeningDebugger: true
 
                 // TODO: flag to disable "suspend" command
             },
