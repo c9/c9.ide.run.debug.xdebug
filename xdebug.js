@@ -161,6 +161,8 @@ define(function(require, exports, module) {
         function setState(state_) {
             if (state === state_)
                 return;
+                
+            // console.info(state_);
 
             state = state_;
             emit("stateChange", { state: state });
@@ -183,22 +185,23 @@ define(function(require, exports, module) {
 
             client.on("session", function(session_) {
                 session = session_;
-
-                session.on("status", onStatus);
-                session.on("break", onBreak);
-
+                    
                 session.setFeature("max_depth", 0);
                 session.setFeature("max_data", 1024);
                 session.setFeature("max_children", 150);
+                
+                session.on("status", onStatus);
+                session.on("break", onBreak);
 
                 setBreakpoints(emit("getBreakpoints"), function(breakpoints) {
                     if (!attached) {
                         attached = true;
                         emit("attach", { breakpoints: breakpoints });
                     }
-
-                    session.run();
+                    
                     callback();
+                    
+                    session.run();
                 });
             });
 
