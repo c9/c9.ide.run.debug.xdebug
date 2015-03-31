@@ -24,7 +24,7 @@ define(function(require, exports, module) {
         var TYPE = "xdebug";
         var PROXY = require("text!./netproxy.js");
 
-        var plugin = new Plugin("Cloud9 IDE, Inc.", main.consumes);
+        var plugin = new Plugin("Ajax.org", main.consumes);
         var emit = plugin.getEmitter();
 
         emit.setMaxListeners(1000);
