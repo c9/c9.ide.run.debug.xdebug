@@ -1,5 +1,7 @@
 var net = require("net");
-var debug = require("debug")("netproxy");
+
+var debug = function(){};
+// var debug = require("debug")("netproxy");
 
 var port = parseInt("{PORT}", 10);
 if (isNaN(port))
