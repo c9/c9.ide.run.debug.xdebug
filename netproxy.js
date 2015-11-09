@@ -39,7 +39,7 @@ var browserServer = net.createServer(function(client) {
         process.exit(0);
         // if (debugClient)
         //     debugClient.end();
-        // browserClient = null;
+        browserClient = null;
     });
 
     browserClient.on("data", function(data) {

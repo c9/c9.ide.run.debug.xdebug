@@ -27,7 +27,7 @@ define(function(require, exports, module) {
         var plugin = new Plugin("Ajax.org", main.consumes);
         var emit = plugin.getEmitter();
 
-        emit.setMaxListeners(1000);
+        // emit.setMaxListeners(1000);
 
         var SCOPE_TYPES = {
             "Locals": "Locals",
@@ -49,6 +49,12 @@ define(function(require, exports, module) {
         }
 
         function unload() {
+            detach();
+            socket = client = session = state = null;
+            attached = false;
+            breakOnExceptions = false;
+            breakOnUncaughtExceptions = false;
+        
             debug.unregisterDebugger(TYPE, plugin);
         }
 
@@ -214,6 +220,15 @@ define(function(require, exports, module) {
             }, plugin);
 
             client.listen(socket);
+            
+            socket.on("end", function() {
+                setState("running");
+            });
+            
+            socket.on("connect", function() {
+                if (!client.listening)
+                    client.listen(socket);
+            });
         }
 
         function detach() {
