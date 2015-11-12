@@ -1,5 +1,5 @@
 define(function(require, exports, module) {
-    main.consumes = ["Plugin", "c9", "debugger"];
+    main.consumes = ["Plugin", "c9", "debugger", "run", "settings", "dialog.alert"];
     main.provides = ["debugger.xdebug"];
     return main;
 
@@ -7,6 +7,10 @@ define(function(require, exports, module) {
         var Plugin = imports.Plugin;
         var c9 = imports.c9;
         var debug = imports["debugger"];
+        var showAlert = imports["dialog.alert"].show;
+        var escapeHTML = require("ace/lib/lang").escapeHTML;
+        var run = imports.run;
+        var settings = imports.settings;
 
         var Frame = debug.Frame;
         var Source = debug.Source;
@@ -46,6 +50,30 @@ define(function(require, exports, module) {
 
         function load() {
             debug.registerDebugger(TYPE, plugin);
+            
+            run.on("starting", function(e) { 
+                if (!/apache/.test(e.runner.cmd[0]))
+                    return;
+                var debugFiles = settings.getJson("state/breakpoints").filter(function(b) {
+                    return /\.(php|phtml|html|shtml)$/.test(b.path);
+                }).map(function(b) {
+                    return b.path;
+                });
+                if (!debugFiles.length)
+                    return;
+                
+                showAlert(
+                    "Debugger",
+                    "Debugger not supported with Apache.",
+                    "You have breakpoints set in the following file(s):"
+                    + "<pre>" + escapeHTML(debugFiles.join('\n')) + "</pre>"
+                    + "To use the Cloud9 PHP debugger, please use the PHP built-in web server. "
+                    + 'See our <a href="https://docs.c9.io/docs/running-and-debugging-code">'
+                    + "documentation</a> for more help.",
+                    null,
+                    { isHTML: true }
+                );
+            });
         }
 
         function unload() {
