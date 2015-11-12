@@ -62,12 +62,21 @@ define(function(require, exports, module) {
                 if (!debugFiles.length)
                     return;
                 
+                // TODO: use http://ripeworks.com/run-wordpress-locally-using-phps-buily-in-web-server/ with php server?
+                var hint = c9.configName !== "workspace-wordpress"
+                    ? "To use the Cloud9 PHP debugger, please use the PHP built-in web server. "
+                    : "Unfortunately the Cloud9 debugger only works with the PHP built-in web server, "
+                    + "which doesn't work well with WordPress."
+                    +"<p>Please clear the breakpoints to"
+                    + "get rid of this message or use the PHP built-in webserver to debug"
+                    + "your PHP code. ";
+                
                 showAlert(
                     "Debugger",
                     "Debugger not supported with Apache.",
                     "You have breakpoints set in the following file(s):"
                     + "<pre>" + escapeHTML(debugFiles.join('\n')) + "</pre>"
-                    + "To use the Cloud9 PHP debugger, please use the PHP built-in web server. "
+                    + hint
                     + 'See our <a href="https://docs.c9.io/docs/running-and-debugging-code">'
                     + "documentation</a> for more help.",
                     null,
