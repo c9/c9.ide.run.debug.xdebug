@@ -1,5 +1,5 @@
 define(function(require, exports, module) {
-    main.consumes = ["Plugin", "c9", "debugger", "run", "settings", "dialog.alert"];
+    main.consumes = ["Plugin", "c9", "debugger", "run", "settings", "dialog.alert", "dialog.info"];
     main.provides = ["debugger.xdebug"];
     return main;
 
@@ -8,6 +8,7 @@ define(function(require, exports, module) {
         var c9 = imports.c9;
         var debug = imports["debugger"];
         var showAlert = imports["dialog.alert"].show;
+        var showInfo = imports["dialog.info"].show;
         var escapeHTML = require("ace/lib/lang").escapeHTML;
         var run = imports.run;
         var settings = imports.settings;
@@ -45,6 +46,7 @@ define(function(require, exports, module) {
         var state = null;
         var breakOnExceptions = false;
         var breakOnUncaughtExceptions = false;
+        var shownHint;
 
         /***** Event Handlers *****/
 
@@ -61,6 +63,11 @@ define(function(require, exports, module) {
                 });
                 if (!debugFiles.length)
                     return;
+                
+                showInfo("Breakpoints in " + debugFiles.length + " files ignored while running using Apache.", 3000);
+                
+                if (shownHint) return;
+                shownHint = true;
                 
                 // TODO: use http://ripeworks.com/run-wordpress-locally-using-phps-buily-in-web-server/ with php server?
                 var hint = c9.configName !== "workspace-wordpress"
