@@ -64,7 +64,7 @@ define(function(require, exports, module) {
                 if (!debugFiles.length)
                     return;
                 
-                showInfo("Breakpoints in " + debugFiles.length + " files ignored while running using Apache.", 3000);
+                showInfo("Breakpoints in " + debugFiles.length + " file(s) ignored while running using Apache.", 3000);
                 
                 if (shownHint) return;
                 shownHint = true;
