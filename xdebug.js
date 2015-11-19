@@ -56,7 +56,10 @@ define(function(require, exports, module) {
             run.on("starting", function(e) { 
                 if (!/apache/.test(e.runner.cmd[0]))
                     return;
-                var debugFiles = settings.getJson("state/breakpoints").filter(function(b) {
+                var breakpoints = settings.getJson("state/breakpoints");
+                if (!Array.isArray(breakpoints))
+                    return;
+                var debugFiles = breakpoints.filter(function(b) {
                     return /\.(php|phtml|html|shtml)$/.test(b.path);
                 }).map(function(b) {
                     return b.path;
