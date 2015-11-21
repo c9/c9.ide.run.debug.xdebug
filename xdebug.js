@@ -1,5 +1,5 @@
 define(function(require, exports, module) {
-    main.consumes = ["Plugin", "c9", "debugger", "run", "settings", "dialog.alert", "dialog.info"];
+    main.consumes = ["Plugin", "c9", "debugger"];
     main.provides = ["debugger.xdebug"];
     return main;
 
@@ -7,11 +7,6 @@ define(function(require, exports, module) {
         var Plugin = imports.Plugin;
         var c9 = imports.c9;
         var debug = imports["debugger"];
-        var showAlert = imports["dialog.alert"].show;
-        var showInfo = imports["dialog.info"].show;
-        var escapeHTML = require("ace/lib/lang").escapeHTML;
-        var run = imports.run;
-        var settings = imports.settings;
 
         var Frame = debug.Frame;
         var Source = debug.Source;
@@ -46,53 +41,11 @@ define(function(require, exports, module) {
         var state = null;
         var breakOnExceptions = false;
         var breakOnUncaughtExceptions = false;
-        var shownHint;
 
         /***** Event Handlers *****/
 
         function load() {
             debug.registerDebugger(TYPE, plugin);
-            
-            run.on("starting", function(e) { 
-                if (!/apache/.test(e.runner.cmd[0]))
-                    return;
-                var breakpoints = settings.getJson("state/breakpoints");
-                if (!Array.isArray(breakpoints))
-                    return;
-                var debugFiles = breakpoints.filter(function(b) {
-                    return /\.(php|phtml|html|shtml)$/.test(b.path);
-                }).map(function(b) {
-                    return b.path;
-                });
-                if (!debugFiles.length)
-                    return;
-                
-                showInfo("Breakpoints in " + debugFiles.length + " file(s) ignored while running using Apache.", 3000);
-                
-                if (shownHint) return;
-                shownHint = true;
-                
-                // TODO: use http://ripeworks.com/run-wordpress-locally-using-phps-buily-in-web-server/ with php server?
-                var hint = c9.configName !== "workspace-wordpress"
-                    ? "To use the Cloud9 PHP debugger, please use the PHP built-in web server. "
-                    : "Unfortunately the Cloud9 debugger only works with the PHP built-in web server, "
-                    + "which doesn't work well with WordPress."
-                    +"<p>Please clear the breakpoints to"
-                    + "get rid of this message or use the PHP built-in webserver to debug"
-                    + "your PHP code. ";
-                
-                showAlert(
-                    "Debugger",
-                    "Debugger not supported with Apache.",
-                    "You have breakpoints set in the following file(s):"
-                    + "<pre>" + escapeHTML(debugFiles.join('\n')) + "</pre>"
-                    + hint
-                    + 'See our <a href="https://docs.c9.io/docs/running-and-debugging-code">'
-                    + "documentation</a> for more help.",
-                    null,
-                    { isHTML: true }
-                );
-            });
         }
 
         function unload() {
