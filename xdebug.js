@@ -389,6 +389,7 @@ define(function(require, exports, module) {
         }
 
         function setBreakpoint(bp, callback) {
+            if (!bp.path) return; // this can happen for serverOnly breakpoints
             var path = filesystemPath(bp.path);
 
             var options = {
