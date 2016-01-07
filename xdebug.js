@@ -367,7 +367,7 @@ define(function(require, exports, module) {
         }
 
         function suspend(callback) {
-            callback(new Error("FIXME: command 'break' is not supported by PHP Xdebug"));
+            callback && callback(new Error("FIXME: command 'break' is not supported by PHP Xdebug"));
         }
 
         function evaluate(expression, frame, global, disableBreak, callback) {
