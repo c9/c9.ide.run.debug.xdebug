@@ -3,9 +3,9 @@ var net = require("net");
 var debug = function(){};
 // var debug = require("debug")("netproxy");
 
-var port = parseInt("{PORT}", 10);
-if (isNaN(port))
-    port = 9000;
+
+var host = "{HOST}" || "127.0.0.1";
+var port = parseInt("{PORT}", 10) || 9000;
 
 var browserBuffer = [];
 var debugBuffer = [];
@@ -21,7 +21,6 @@ function send() {
     log.apply(console, arguments);
 }
 
-var host = "127.0.0.1";
 
 // ---
 
