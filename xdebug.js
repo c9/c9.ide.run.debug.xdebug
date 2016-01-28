@@ -226,7 +226,7 @@ define(function(require, exports, module) {
             });
             
             socket.on("connect", function() {
-                if (!client.listening)
+                if (client && !client.listening)
                     client.listen(socket);
             });
         }
