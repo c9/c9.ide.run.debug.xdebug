@@ -215,7 +215,7 @@ define(function(require, exports, module) {
                 emit("error", err);
             }, plugin);
             
-            client.once("listening", function(){
+            client.once("listening", function() {
                 emit("connect");
             }, plugin);
 
@@ -470,7 +470,7 @@ define(function(require, exports, module) {
                 var bp = breakpoints[i];
 
                 plugin.setBreakpoint(bp, function() {
-                    _setBPs(breakpoints, callback, i+1);
+                    _setBPs(breakpoints, callback, i + 1);
                 });
             }
 
@@ -543,12 +543,12 @@ define(function(require, exports, module) {
              * </table>
              * @readonly
              */
-            get state(){ return state; },
+            get state() { return state; },
 
             /**
              *
              */
-            get attached(){ return attached; },
+            get attached() { return attached; },
 
             /**
              * Whether the debugger will break when it encounters any exception.
@@ -556,7 +556,7 @@ define(function(require, exports, module) {
              * @property {Boolean} breakOnExceptions
              * @readonly
              */
-            get breakOnExceptions(){ return breakOnExceptions; },
+            get breakOnExceptions() { return breakOnExceptions; },
 
             /**
              * Whether the debugger will break when it encounters an uncaught
@@ -564,7 +564,7 @@ define(function(require, exports, module) {
              * @property {Boolean} breakOnUncaughtExceptions
              * @readonly
              */
-            get breakOnUncaughtExceptions(){ return breakOnUncaughtExceptions; },
+            get breakOnUncaughtExceptions() { return breakOnUncaughtExceptions; },
 
             _events: [
                 /**
@@ -815,7 +815,7 @@ define(function(require, exports, module) {
         });
 
         register(null, {
-            "debugger.xdebug" : plugin
+            "debugger.xdebug": plugin
         });
     }
 });

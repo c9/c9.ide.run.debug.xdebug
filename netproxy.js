@@ -1,6 +1,6 @@
 var net = require("net");
 
-var debug = function(){};
+var debug = function() {};
 // var debug = require("debug")("netproxy");
 
 
@@ -59,7 +59,7 @@ var browserServer = net.createServer(function(client) {
 });
 
 browserServer.listen(port + 1, host, function() {
-    debug("netproxy listening for browser on port " + (port+1));
+    debug("netproxy listening for browser on port " + (port + 1));
     start();
 });
 
@@ -118,7 +118,7 @@ debugServer.on("error", function(err) {
 
 // --
 
-var I=0;
+var I = 0;
 function start() {
     if (++I == 2)
         send("ß");
